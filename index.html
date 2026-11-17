@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Giva × Zepto – Santa's Surprise</title>
+  <!-- A-Frame and MindAR are MIT licensed: free for commercial use -->
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin:0; height:100%; overflow:hidden; background:#000; font-family: system-ui, Arial, sans-serif; }
+    #start { position:fixed; inset:0; z-index:30; display:flex; flex-direction:column; align-items:center; justify-content:center;
+      gap:14px; padding:28px; text-align:center; background:#fff8f1; color:#43251f; }
+    #start img { width:min(70vw,300px); border-radius:18px; }
+    #start h1 { font-family:Georgia,serif; font-size:26px; margin:4px 0 0; }
+    #start p { margin:0; color:#654b42; line-height:1.4; max-width:320px; }
+    button, .btn { border:0; border-radius:999px; padding:15px 28px; font-size:16px; font-weight:700; background:#8b1732; color:#fff; text-decoration:none; cursor:pointer; }
+    #start.hide { display:none; }
+    #hint { position:fixed; left:16px; right:16px; bottom:96px; z-index:10; text-align:center; color:#fff;
+      background:#0008; border-radius:12px; padding:10px 14px; font-size:15px; pointer-events:none; transition:opacity .3s; }
+    #hint.hide { opacity:0; }
+    #cta { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); z-index:10; display:none; white-space:nowrap;
+      background:#fff; color:#8b1732; box-shadow:0 4px 14px #0006; }
+    #cta.show { display:block; }
+    #err { display:none; position:fixed; inset:0; z-index:40; align-items:center; justify-content:center; padding:28px;
+      text-align:center; background:#fff8f1; color:#43251f; line-height:1.45; }
+    #err.show { display:flex; }
+  </style>
+</head>
+<body>
+
+<div id="start">
+  <img src="./santa-target.jpg" alt="Santa holding a ring box">
+  <h1>Santa has a surprise for you</h1>
+  <p>Tap start, allow the camera, then point it at your Santa magnet.</p>
+  <button id="startBtn">Start</button>
+</div>
+
+<div id="hint" class="hide">Point your camera at the Santa magnet 🎅</div>
+<!-- TODO: replace with the exact Zepto product / collection URL -->
+<a id="cta" class="btn" href="https://www.zeptonow.com/" target="_blank" rel="noopener">Shop Giva on Zepto</a>
+<div id="err"><div id="errText"></div></div>
+
+<a-scene id="arScene"
+  mindar-image="imageTargetSrc: ./santa-target.mind; autoStart: false; uiLoading: no; uiScanning: no; uiError: no; filterMinCF: 0.0001; filterBeta: 0.001;"
+  color-space="sRGB" renderer="colorManagement: true"
+  vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+  <a-assets>
+    <video id="arVideo" src="./santa-animation.mp4" preload="auto" loop
+      playsinline webkit-playsinline muted crossorigin="anonymous"></video>
+  </a-assets>
+  <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+  <a-entity id="target" mindar-image-target="targetIndex: 0">
+    <!-- width 1 = magnet width; height 0.793 = magnet aspect (1921x1524) -->
+    <a-video src="#arVideo" width="1" height="0.793" position="0 0 0.01"></a-video>
+  </a-entity>
+</a-scene>
+
+<script>
+  const $ = s => document.querySelector(s);
+  const scene = $('#arScene'), video = $('#arVideo'), target = $('#target');
+  const hint = $('#hint'), cta = $('#cta');
+
+  function fail(msg) { $('#errText').innerHTML = msg; $('#err').classList.add('show'); $('#start').classList.add('hide'); }
+
+  $('#startBtn').addEventListener('click', async () => {
+    // Unlock video playback inside the tap (needed on iOS Safari)
+    try { await video.play(); video.pause(); video.currentTime = 0; } catch (e) {}
+    try {
+      const r = await fetch('./santa-target.mind', { method: 'HEAD' });
+      if (!r.ok) throw new Error('no mind file');
+    } catch (e) { return fail('Setup incomplete: <b>santa-target.mind</b> is missing.'); }
+    try {
+      if (!scene.hasLoaded) await new Promise(res => scene.addEventListener('loaded', res, { once: true }));
+      await scene.systems['mindar-image-system'].start();
+      $('#start').classList.add('hide');
+      hint.classList.remove('hide');
+    } catch (e) {
+      console.error(e);
+      fail('Camera could not start.<br>Allow camera access, and open this link in Chrome or Safari (not inside another app).');
+    }
+  });
+
+  target.addEventListener('targetFound', () => {
+    hint.classList.add('hide'); cta.classList.add('show');
+    video.currentTime = 0; video.play().catch(console.warn);
+  });
+  target.addEventListener('targetLost', () => { video.pause(); hint.classList.remove('hide'); });
+</script>
+</body>
+</html>
